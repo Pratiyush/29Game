@@ -23,6 +23,7 @@ class TableSession extends ChangeNotifier {
     required this.name,
     required this.playerId,
     required this._intent,
+    this.avatar = -1,
     this.server,
     this.nearbyHost,
   }) {
@@ -30,15 +31,22 @@ class TableSession extends ChangeNotifier {
   }
 
   /// Play against bots on this phone. No network at all.
-  factory TableSession.offline({required String name, required String playerId, required BotLevel level}) {
+  factory TableSession.offline({
+    required String name,
+    required String playerId,
+    required BotLevel level,
+    int avatar = -1,
+    Duration botDelay = const Duration(milliseconds: 700),
+  }) {
     final server = LocalServer(
-      options: LocalServerOptions(botLevel: level, quickMatchWait: Duration.zero),
+      options: LocalServerOptions(botLevel: level, quickMatchWait: Duration.zero, botDelay: botDelay),
     );
     return TableSession._(
       kind: SessionKind.offline,
       connection: server.connect(),
       name: name,
       playerId: playerId,
+      avatar: avatar,
       intent: const {'type': 'quickMatch'},
       server: server,
     );
@@ -46,7 +54,7 @@ class TableSession extends ChangeNotifier {
 
   /// Online through the Quarkus backend, or the in-app mock backend (see [AppConfig]).
   /// [intent] is a lobby message: quickMatch, createRoom or joinRoom.
-  factory TableSession.online({required String name, required String playerId, required Json intent}) {
+  factory TableSession.online({required String name, required String playerId, required Json intent, int avatar = -1}) {
     LocalServer? server;
     final GameConnection connection;
     if (AppConfig.useMockBackend) {
@@ -60,31 +68,47 @@ class TableSession extends ChangeNotifier {
       connection: connection,
       name: name,
       playerId: playerId,
+      avatar: avatar,
       intent: intent,
       server: server,
     );
   }
 
   /// Host a table that nearby phones join over Bluetooth / Wi-Fi Direct.
-  factory TableSession.nearbyHost({required String name, required String playerId, required BotLevel level}) {
-    final server = LocalServer(options: LocalServerOptions(botLevel: level));
+  factory TableSession.nearbyHost({
+    required String name,
+    required String playerId,
+    required BotLevel level,
+    int avatar = -1,
+    Duration botDelay = const Duration(milliseconds: 700),
+  }) {
+    final server = LocalServer(
+      options: LocalServerOptions(botLevel: level, botDelay: botDelay),
+    );
     return TableSession._(
       kind: SessionKind.nearbyHost,
       connection: server.connect(),
       name: name,
       playerId: playerId,
+      avatar: avatar,
       intent: const {'type': 'createRoom'},
       server: server,
       nearbyHost: NearbyHost(server, name),
     );
   }
 
-  factory TableSession.nearbyGuest({required String name, required String playerId, required NearbyTable table}) {
+  factory TableSession.nearbyGuest({
+    required String name,
+    required String playerId,
+    required NearbyTable table,
+    int avatar = -1,
+  }) {
     return TableSession._(
       kind: SessionKind.nearbyGuest,
       connection: NearbyGuestConnection(table, name),
       name: name,
       playerId: playerId,
+      avatar: avatar,
       intent: {'type': 'joinRoom', 'code': table.code},
     );
   }
@@ -93,6 +117,9 @@ class TableSession extends ChangeNotifier {
   final GameConnection connection;
   final String name;
   final String playerId;
+
+  /// Portrait index sent with hello; -1 lets the host pick.
+  final int avatar;
   final LocalServer? server;
   final NearbyHost? nearbyHost;
   final Json _intent;
@@ -111,9 +138,16 @@ class TableSession extends ChangeNotifier {
   /// Errors from the host (illegal move, bad room code...) to show as snackbars.
   Stream<String> get errors => _errors.stream;
 
+  final StreamController<EmoteEvent> _emotes = StreamController.broadcast();
+
+  /// Quick reactions from anyone at the table (including bots), to float over their seat.
+  Stream<EmoteEvent> get emotes => _emotes.stream;
+
+  void emote(String emote) => connection.send({'type': 'emote', 'emote': emote});
+
   String seatName(int seat) {
     if (seat == room?.yourSeat) return 'You';
-    return room?.seats[seat]?.name ?? 'Seat ${seat + 1}';
+    return (room?.seats[seat]?.name ?? 'Seat ${seat + 1}').replaceAll(' (bot)', '');
   }
 
   void act(GameAction action) => connection.send(action.toJson());
@@ -129,7 +163,7 @@ class TableSession extends ChangeNotifier {
       case 'connection':
         connectionStatus = m['status'] as String;
         if (connectionStatus == 'connected') {
-          connection.send({'type': 'hello', 'playerId': playerId, 'name': name});
+          connection.send({'type': 'hello', 'playerId': playerId, 'name': name, 'avatar': avatar});
         }
       case 'welcome':
         if (!_intentSent) {
@@ -145,6 +179,9 @@ class TableSession extends ChangeNotifier {
         view = PlayerView.fromJson(m['view'] as Json);
       case 'left':
         left = true;
+      case 'emote':
+        _emotes.add(EmoteEvent(m['seat'] as int, m['emote'] as String));
+        return;
       case 'error':
         _errors.add(m['message'] as String);
         return;
@@ -161,6 +198,14 @@ class TableSession extends ChangeNotifier {
     connection.close();
     server?.dispose();
     _errors.close();
+    _emotes.close();
     super.dispose();
   }
+}
+
+class EmoteEvent {
+  const EmoteEvent(this.seat, this.emote);
+
+  final int seat;
+  final String emote;
 }

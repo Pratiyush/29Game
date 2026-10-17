@@ -10,7 +10,7 @@ Every message is a JSON object with a `type`. The same messages are used:
 
 | type | fields | notes |
 |------|--------|-------|
-| `hello` | `playerId?`, `name` | **Must be first.** Reuse the saved `playerId` to get your seat back after a reconnect. |
+| `hello` | `playerId?`, `name`, `avatar?` | **Must be first.** Reuse the saved `playerId` to get your seat back after a reconnect. `avatar` is a portrait index 0–15 (omit to let the host pick). |
 | `quickMatch` | `name?` | Join or open a public table. It starts when full, or fills with bots after `quick-match-wait-ms`. |
 | `createRoom` | `name?` | Private table; you are host. The reply `room.code` is the code to share. |
 | `joinRoom` | `code`, `name?` | Case-insensitive. |
@@ -23,6 +23,7 @@ Every message is a JSON object with a `type`. The same messages are used:
 | `play` | `card` | |
 | `revealTrump` | | Only when you cannot follow suit. |
 | `showPair` | | K+Q of trump, see RULES.md. |
+| `emote` | `emote` | A quick reaction. Must be one of the allowlist in `Emotes.java` / `emotes.dart` (8 emoji + 4 phrases); free text is rejected. At most one per 1.5 s per player. |
 | `ping` | | Reply: `pong`. |
 
 Cards are `rank + suit`: ranks `J 9 A T K Q 8 7` (`T` = 10), suits `C D H S`. Examples: `JS`, `TH`, `7D`.
@@ -34,7 +35,7 @@ Cards are `rank + suit`: ranks `J 9 A T K Q 8 7` (`T` = 10), suits `C D H S`. Ex
 
 {"type":"room","room":{
   "code":"48XYT","isPublic":true,"hostSeat":0,"status":"WAITING|PLAYING","yourSeat":0,
-  "seats":[{"seat":0,"name":"Asha","bot":false,"connected":true}, null, null, null]}}
+  "seats":[{"seat":0,"name":"Asha","bot":false,"connected":true,"avatar":7}, null, null, null]}}
 
 {"type":"state","view":{
   "seat":0, "phase":"BIDDING|CHOOSE_TRUMP|PLAYING|ROUND_OVER|MATCH_OVER",
@@ -56,6 +57,8 @@ Cards are `rank + suit`: ranks `J 9 A T K Q 8 7` (`T` = 10), suits `C D H S`. Ex
   "matchWinner":-1,
   "legal":{"bids":[],"canPass":false,"trumpCards":[],"cards":[],"canRevealTrump":false,"canShowPair":false}
 }}
+
+{"type":"emote","seat":2,"emote":"👏"}       // also sent by bots now and then when a deal ends
 
 {"type":"error","message":"Not your turn"}
 {"type":"left"}

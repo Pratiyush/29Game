@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game29.engine.Action;
 import com.game29.engine.Card;
 import com.game29.engine.IllegalMoveException;
+import com.game29.room.Emotes;
 import com.game29.room.Messages;
 import com.game29.room.RoomService;
 import io.quarkus.websockets.next.OnClose;
@@ -45,10 +46,12 @@ public class GameSocket {
             String playerId = sessions.playerOf(connection);
             if (playerId == null) throw new IllegalMoveException("Say hello first");
             String name = msg.hasNonNull("name") ? msg.path("name").asText() : sessions.nameOf(playerId);
+            int avatar = sessions.avatarOf(playerId);
             switch (type) {
-                case "quickMatch" -> rooms.quickMatch(playerId, cleanName(name));
-                case "createRoom" -> rooms.createRoom(playerId, cleanName(name));
-                case "joinRoom" -> rooms.joinRoom(playerId, cleanName(name), msg.path("code").asText());
+                case "quickMatch" -> rooms.quickMatch(playerId, cleanName(name), avatar);
+                case "createRoom" -> rooms.createRoom(playerId, cleanName(name), avatar);
+                case "joinRoom" -> rooms.joinRoom(playerId, cleanName(name), avatar, msg.path("code").asText());
+                case "emote" -> rooms.emote(playerId, msg.path("emote").asText());
                 case "addBot" -> rooms.addBot(playerId);
                 case "startGame" -> rooms.start(playerId);
                 case "leaveRoom" -> {
@@ -81,7 +84,9 @@ public class GameSocket {
         String playerId = msg.path("playerId").asText("");
         if (playerId.isBlank() || playerId.length() > 64) playerId = UUID.randomUUID().toString();
         String name = cleanName(msg.path("name").asText(""));
-        sessions.bind(playerId, name, connection);
+        int avatar = msg.path("avatar").asInt(-1);
+        if (avatar < -1 || avatar >= Emotes.AVATARS) avatar = -1;
+        sessions.bind(playerId, name, avatar, connection);
         sessions.send(connection, new Messages.Welcome(playerId, name));
         rooms.connected(playerId);
     }

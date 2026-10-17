@@ -21,9 +21,11 @@ public class Sessions implements Outbox {
     private final Map<String, WebSocketConnection> byPlayer = new ConcurrentHashMap<>();
     private final Map<String, String> playerByConnection = new ConcurrentHashMap<>();
     private final Map<String, String> names = new ConcurrentHashMap<>();
+    private final Map<String, Integer> avatars = new ConcurrentHashMap<>();
 
-    void bind(String playerId, String name, WebSocketConnection connection) {
+    void bind(String playerId, String name, int avatar, WebSocketConnection connection) {
         names.put(playerId, name);
+        avatars.put(playerId, avatar);
         String previousPlayer = playerByConnection.put(connection.id(), playerId);
         if (previousPlayer != null && !previousPlayer.equals(playerId)) byPlayer.remove(previousPlayer, connection);
         WebSocketConnection old = byPlayer.put(playerId, connection);
@@ -39,6 +41,7 @@ public class Sessions implements Outbox {
         String playerId = playerByConnection.remove(connection.id());
         if (playerId != null && byPlayer.remove(playerId, connection)) {
             names.remove(playerId);
+            avatars.remove(playerId);
             return playerId;
         }
         return null;
@@ -46,6 +49,10 @@ public class Sessions implements Outbox {
 
     String nameOf(String playerId) {
         return names.getOrDefault(playerId, "");
+    }
+
+    int avatarOf(String playerId) {
+        return avatars.getOrDefault(playerId, -1);
     }
 
     String playerOf(WebSocketConnection connection) {

@@ -95,4 +95,28 @@ void main() {
     expect(s.view!.hand.length, 4);
     s.dispose();
   });
+
+  test('avatars reach every seat and emotes are relayed, with an allowlist', () async {
+    final server = LocalServer(options: fast);
+    final c = server.connect();
+    final inbox = <Json>[];
+    c.messages.listen(inbox.add);
+    c.send({'type': 'hello', 'name': 'Emo', 'avatar': 7});
+    c.send({'type': 'createRoom'});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final room = RoomInfo.fromJson(inbox.lastWhere((m) => m['type'] == 'room')['room'] as Json);
+    expect(room.seats[0]!.avatar, 7);
+
+    c.send({'type': 'emote', 'emote': '👍'});
+    c.send({'type': 'emote', 'emote': 'free text is not allowed'});
+    c.send({'type': 'startGame'});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(inbox.where((m) => m['type'] == 'emote').single['seat'], 0);
+    expect(inbox.where((m) => m['type'] == 'error').single['message'], contains('emote'));
+    final started = RoomInfo.fromJson(inbox.lastWhere((m) => m['type'] == 'room')['room'] as Json);
+    final avatars = started.seats.map((s) => s!.avatar).toList();
+    expect(avatars.every((a) => a >= 0 && a < 16), isTrue);
+    expect(avatars.toSet().length, 4, reason: 'bots pick portraits nobody else is using');
+    server.dispose();
+  });
 }

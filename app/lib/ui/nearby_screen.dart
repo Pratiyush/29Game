@@ -132,7 +132,13 @@ class _NearbyScreenState extends State<NearbyScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () => _open(
-                    TableSession.nearbyHost(name: widget.name, playerId: widget.prefs.playerId, level: widget.level),
+                    TableSession.nearbyHost(
+                      name: widget.name,
+                      playerId: widget.prefs.playerId,
+                      level: widget.level,
+                      avatar: widget.prefs.avatar,
+                      botDelay: widget.prefs.speed.botDelay,
+                    ),
                   ),
                   child: const Text('Host a table'),
                 ),
@@ -184,8 +190,14 @@ class _NearbyScreenState extends State<NearbyScreen> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(AppRadius.md),
-              onTap: () =>
-                  _open(TableSession.nearbyGuest(name: widget.name, playerId: widget.prefs.playerId, table: t)),
+              onTap: () => _open(
+                TableSession.nearbyGuest(
+                  name: widget.name,
+                  playerId: widget.prefs.playerId,
+                  table: t,
+                  avatar: widget.prefs.avatar,
+                ),
+              ),
               child: Panel(
                 child: Row(
                   children: [

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../net/connection.dart';
 import '../net/session.dart';
+import 'avatar.dart';
 import 'theme.dart';
 
 /// Waiting room: the table with seats filling up, the code to share, and host controls.
@@ -195,37 +196,31 @@ class _LobbySeat extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: C.ink.withValues(alpha: 0.85),
-              border: Border.all(
-                color: info == null ? C.faint.withValues(alpha: 0.45) : color,
-                width: info == null ? 1 : 2,
+          if (info == null)
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: C.ink.withValues(alpha: 0.85),
+                border: Border.all(color: C.faint.withValues(alpha: 0.45)),
               ),
-            ),
-            alignment: Alignment.center,
-            child: info == null
-                ? const Icon(Icons.person_add_alt_1_rounded, color: C.faint, size: 20)
-                : info.bot
-                ? Icon(Icons.smart_toy_rounded, color: color, size: 24)
-                : Text(
-                    info.name.characters.first.toUpperCase(),
-                    style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 21),
-                  ),
-          ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.person_add_alt_1_rounded, color: C.faint, size: 20),
+            )
+          else
+            AvatarPortrait(avatar: info.avatar, name: info.name, size: 56, ring: color),
           const SizedBox(height: 6),
           Text(
-            info == null ? 'Open seat' : (me ? 'You' : info.name),
+            info == null ? 'Open seat' : (me ? 'You' : info.name.replaceAll(' (bot)', '')),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: info == null ? C.faint : C.cream),
           ),
           Text(
-            info != null && seat == room.hostSeat ? 'host' : (sameTeam ? 'your team' : 'opponent'),
+            info != null && seat == room.hostSeat
+                ? 'host'
+                : '${info?.bot ?? false ? 'bot · ' : ''}${sameTeam ? 'your team' : 'opponent'}',
             style: const TextStyle(fontSize: 10, color: C.faint),
           ),
         ],

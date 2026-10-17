@@ -13,6 +13,7 @@ import '../engine/bot.dart';
 import '../engine/game.dart';
 import '../engine/view.dart';
 import 'connection.dart';
+import 'emotes.dart';
 
 class LocalServerOptions {
   const LocalServerOptions({
@@ -40,6 +41,9 @@ class ServerClient {
   final void Function(Json) _deliver;
   String? playerId;
   String name = 'Player';
+
+  /// Chosen portrait, or -1 to let the server pick one.
+  int avatar = -1;
   bool _closed = false;
 
   /// Feed a message from the client into the server.
@@ -115,6 +119,8 @@ class LocalServer {
         case 'leaveRoom':
           _leave(playerId);
           client._send({'type': 'left'});
+        case 'emote':
+          _roomOf(playerId).emote(playerId, msg['emote'] as String? ?? '');
         case 'ping':
           client._send({'type': 'pong'});
         default:
@@ -134,9 +140,11 @@ class LocalServer {
   void _hello(ServerClient client, Json msg) {
     var playerId = msg['playerId'] as String? ?? '';
     if (playerId.isEmpty || playerId.length > 64) playerId = 'p${_random.nextInt(1 << 32)}-${_nextId++}';
+    final avatar = msg['avatar'] is int ? msg['avatar'] as int : -1;
     client
       ..playerId = playerId
-      ..name = _cleanName(msg['name'] as String? ?? '');
+      ..name = _cleanName(msg['name'] as String? ?? '')
+      ..avatar = avatar >= 0 && avatar < avatarCount ? avatar : -1;
     final old = _clientByPlayer[playerId];
     if (old != null && old != client) old._closed = true;
     _clientByPlayer[playerId] = client;
@@ -205,7 +213,7 @@ class LocalServer {
 
   void _seat(_Room room, String playerId, String name) {
     _roomOfPlayer[playerId] = room.code;
-    if (!room.join(playerId, name)) {
+    if (!room.join(playerId, name, _clientByPlayer[playerId]?.avatar ?? -1)) {
       _roomOfPlayer.remove(playerId);
       throw IllegalMoveException('Could not take a seat');
     }
@@ -237,11 +245,15 @@ class LocalServer {
 }
 
 class _Seat {
-  _Seat(this.playerId, this.name, {required this.bot}) : connected = !bot;
+  _Seat(this.playerId, this.name, {required this.bot, required this.avatar}) : connected = !bot;
 
   final String playerId;
   final String name;
   final bool bot;
+
+  /// Index into assets/avatars.
+  final int avatar;
+  DateTime lastEmote = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// Shown as a person in the lobby although a bot plays it (mock online players).
   bool looksHuman = false;
@@ -266,6 +278,7 @@ class _Room {
   bool _playing = false;
   Game? _game;
   int _version = 0;
+  int _reactedRound = 0;
 
   bool get hasFreeSeat => !_playing && _seats.contains(null);
 
@@ -273,11 +286,11 @@ class _Room {
 
   int seatOf(String playerId) => _seats.indexWhere((s) => s?.playerId == playerId);
 
-  bool join(String playerId, String name) {
+  bool join(String playerId, String name, int avatar) {
     if (seatOf(playerId) != -1) return true;
     final free = _seats.indexOf(null);
     if (_playing || free == -1) return false;
-    _seats[free] = _Seat(playerId, name, bot: false);
+    _seats[free] = _Seat(playerId, name, bot: false, avatar: avatar >= 0 ? avatar : _freeAvatar());
     _host ??= playerId;
     _changed();
     if (!_seats.contains(null) && isPublic) startGame();
@@ -288,7 +301,7 @@ class _Room {
     _requireHost(requester);
     final free = _seats.indexOf(null);
     if (free == -1) throw IllegalMoveException('Table is full');
-    _seats[free] = _Seat('bot-$code-$free', '${_freeName(_botNames)} (bot)', bot: true);
+    _seats[free] = _newBot(free);
     _changed();
   }
 
@@ -300,7 +313,7 @@ class _Room {
   void startGame() {
     if (_playing || !hasConnectedHumans) return;
     for (var i = 0; i < _seats.length; i++) {
-      _seats[i] ??= _Seat('bot-$code-$i', '${_freeName(_botNames)} (bot)', bot: true);
+      _seats[i] ??= _newBot(i);
     }
     _playing = true;
     _game = Game(_server._random);
@@ -314,7 +327,8 @@ class _Room {
       later(window * (i / (arrivals + 1)), () {
         final free = _seats.indexOf(null);
         if (_playing || free == -1) return;
-        _seats[free] = _Seat('sim-$code-$free', _freeName(_onlineNames), bot: true)..looksHuman = true;
+        _seats[free] = _Seat('sim-$code-$free', _freeName(_onlineNames), bot: true, avatar: _freeAvatar())
+          ..looksHuman = true;
         _changed();
       });
     }
@@ -322,7 +336,7 @@ class _Room {
 
   /// Mock online: a friend who created this table is already sitting at it.
   void seatSimulatedHost() {
-    _seats[0] = _Seat('sim-$code-0', _freeName(_onlineNames), bot: true)..looksHuman = true;
+    _seats[0] = _Seat('sim-$code-0', _freeName(_onlineNames), bot: true, avatar: _freeAvatar())..looksHuman = true;
   }
 
   void act(String playerId, GameAction action) {
@@ -343,7 +357,9 @@ class _Room {
   void leave(String playerId) {
     final seat = seatOf(playerId);
     if (seat == -1) return;
-    _seats[seat] = _playing ? _Seat('bot-$code-$seat', _seats[seat]!.name, bot: true) : null;
+    _seats[seat] = _playing
+        ? _Seat('bot-$code-$seat', _seats[seat]!.name, bot: true, avatar: _seats[seat]!.avatar)
+        : null;
     if (_host == playerId) {
       _host = _seats.where((s) => s != null && !s.bot).map((s) => s!.playerId).firstOrNull;
     }
@@ -384,6 +400,62 @@ class _Room {
       resend(s.playerId);
     }
     _scheduleAutomaticMove();
+    final game = _game;
+    if (game != null &&
+        (game.phase == Phase.roundOver || game.phase == Phase.matchOver) &&
+        _reactedRound != game.round) {
+      _reactedRound = game.round;
+      later(const Duration(milliseconds: 700), _maybeBotReaction);
+    }
+  }
+
+  /// A player's quick reaction, relayed to everyone at the table.
+  void emote(String playerId, String emote) {
+    final seat = seatOf(playerId);
+    if (seat == -1) throw IllegalMoveException('You are not seated here');
+    if (!allowedEmotes.contains(emote)) throw IllegalMoveException('Unknown emote');
+    final now = DateTime.now();
+    if (now.difference(_seats[seat]!.lastEmote) < emoteCooldown) return;
+    _seats[seat]!.lastEmote = now;
+    _broadcastEmote(seat, emote);
+  }
+
+  void _broadcastEmote(int seat, String emote) {
+    for (final s in _seats) {
+      if (s != null && !s.bot && s.connected) {
+        _server._sendTo(s.playerId, {'type': 'emote', 'seat': seat, 'emote': emote});
+      }
+    }
+  }
+
+  /// Bots react now and then when a deal ends, so a table of bots does not feel dead.
+  void _maybeBotReaction() {
+    final last = _game?.view(0).lastRound;
+    if (last == null || _server._random.nextInt(100) >= 45) return;
+    final bots = [
+      for (var i = 0; i < _seats.length; i++)
+        if (_seats[i]?.bot ?? false) i,
+    ];
+    if (bots.isEmpty) return;
+    final seat = bots[_server._random.nextInt(bots.length)];
+    final winningTeam = last.success ? Game.teamOf(last.bidder) : 1 - Game.teamOf(last.bidder);
+    final pool = Game.teamOf(seat) == winningTeam
+        ? const ['😎', '👏', '🔥', 'Well played!']
+        : const ['😮', '🙏', 'Oops!'];
+    _broadcastEmote(seat, pool[_server._random.nextInt(pool.length)]);
+  }
+
+  _Seat _newBot(int seat) =>
+      _Seat('bot-$code-$seat', '${_freeName(_botNames)} (bot)', bot: true, avatar: _freeAvatar());
+
+  /// A portrait nobody at the table is using yet.
+  int _freeAvatar() {
+    final taken = _seats.whereType<_Seat>().map((s) => s.avatar).toSet();
+    final free = [
+      for (var a = 0; a < avatarCount; a++)
+        if (!taken.contains(a)) a,
+    ];
+    return free.isEmpty ? _server._random.nextInt(avatarCount) : free[_server._random.nextInt(free.length)];
   }
 
   void _scheduleAutomaticMove() {
@@ -420,6 +492,7 @@ class _Room {
                 _seats[i]!.name,
                 _seats[i]!.bot && !_seats[i]!.looksHuman,
                 _seats[i]!.bot || _seats[i]!.connected,
+                _seats[i]!.avatar,
               ),
     ], yourSeat);
   }

@@ -127,6 +127,32 @@ class GameSocketTest {
         assertTrue(b.next("error").path("message").asText().contains(code));
     }
 
+    @Test
+    void emotesAreRelayedAndSeatsCarryAvatars() throws Exception {
+        Client c = new Client("Emo");
+        c.send("{\"type\":\"hello\",\"name\":\"Emo\",\"avatar\":7}");
+        c.next("welcome");
+        c.send("{\"type\":\"createRoom\"}");
+        JsonNode room = c.next("room").path("room");
+        assertEquals(7, room.path("seats").get(0).path("avatar").asInt());
+
+        c.send("{\"type\":\"emote\",\"emote\":\"👍\"}");
+        JsonNode emote = c.next("emote");
+        assertEquals(0, emote.path("seat").asInt());
+        assertEquals("👍", emote.path("emote").asText());
+
+        c.send("{\"type\":\"emote\",\"emote\":\"free text is not allowed\"}");
+        assertTrue(c.next("error").path("message").asText().contains("emote"));
+
+        c.send("{\"type\":\"startGame\"}");
+        JsonNode started = c.next("room").path("room");
+        for (JsonNode seat : started.path("seats")) {
+            int a = seat.path("avatar").asInt();
+            assertTrue(a >= 0 && a < 16, "every seat, bots included, gets an avatar");
+        }
+        c.conn.closeAndAwait();
+    }
+
     private static String toJson(Action a) {
         return switch (a) {
             case Action.Bid b -> "{\"type\":\"bid\",\"value\":" + b.value() + "}";

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart' hide Card;
 
 import '../engine/cards.dart';
+import '../net/emotes.dart';
+import '../prefs.dart';
+import 'avatar.dart';
 import 'theme.dart';
 
 /// Renders a card from its sprite in assets/cards/<code>.png (or back.png when [code] is null).
@@ -30,7 +33,16 @@ class CardSprite extends StatelessWidget {
   /// 0 = flat (cards fanned in a hand), 1 = normal, 2 = lifted off the table.
   final double elevation;
 
-  static String assetFor(String? code) => 'assets/cards/${code ?? 'back'}.png';
+  static String assetFor(String? code) => 'assets/cards/${code ?? _back}.png';
+
+  /// The card back chosen in settings.
+  static String get _back {
+    try {
+      return Prefs.instance.cardBack;
+    } catch (_) {
+      return 'back';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +130,8 @@ class _VectorCard extends StatelessWidget {
 Future<void> precacheCards(BuildContext context) async {
   await Future.wait([
     for (final c in Card.deck) precacheImage(AssetImage(CardSprite.assetFor(c.code)), context),
-    precacheImage(AssetImage(CardSprite.assetFor(null)), context),
+    precacheImage(const AssetImage('assets/cards/back.png'), context),
+    precacheImage(const AssetImage('assets/cards/back_red.png'), context),
+    for (var i = 0; i < avatarCount; i++) precacheImage(AssetImage(avatarAsset(i)), context),
   ]);
 }

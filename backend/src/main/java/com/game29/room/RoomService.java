@@ -51,7 +51,7 @@ public class RoomService {
     // ---------------------------------------------------------------- lobby
 
     /** Joins the oldest public table with a free seat, or opens one that fills with bots after a short wait. */
-    public synchronized void quickMatch(String playerId, String name) {
+    public synchronized void quickMatch(String playerId, String name, int avatar) {
         leave(playerId);
         Room target = rooms.values().stream()
                 .filter(r -> r.isPublic && r.hasFreeSeat())
@@ -64,17 +64,17 @@ public class RoomService {
                 if (rooms.containsKey(room.code)) room.startGame();
             }, config.quickMatchWaitMs(), TimeUnit.MILLISECONDS);
         }
-        seat(target, playerId, name);
+        seat(target, playerId, name, avatar);
     }
 
-    public synchronized String createRoom(String playerId, String name) {
+    public synchronized String createRoom(String playerId, String name, int avatar) {
         leave(playerId);
         Room room = newRoom(false);
-        seat(room, playerId, name);
+        seat(room, playerId, name, avatar);
         return room.code;
     }
 
-    public synchronized void joinRoom(String playerId, String name, String code) {
+    public synchronized void joinRoom(String playerId, String name, int avatar, String code) {
         Room room = rooms.get(code == null ? "" : code.trim().toUpperCase());
         if (room == null) throw new IllegalMoveException("No table with code " + code);
         if (room.seatOf(playerId) != -1) {
@@ -83,7 +83,7 @@ public class RoomService {
         }
         if (!room.hasFreeSeat()) throw new IllegalMoveException("That table is full or already playing");
         leave(playerId);
-        seat(room, playerId, name);
+        seat(room, playerId, name, avatar);
     }
 
     public void addBot(String playerId) {
@@ -92,6 +92,10 @@ public class RoomService {
 
     public void start(String playerId) {
         roomOf(playerId).start(playerId);
+    }
+
+    public void emote(String playerId, String emote) {
+        roomOf(playerId).emote(playerId, emote);
     }
 
     public void act(String playerId, Action action) {
@@ -128,9 +132,9 @@ public class RoomService {
 
     // ---------------------------------------------------------------- internals
 
-    private void seat(Room room, String playerId, String name) {
+    private void seat(Room room, String playerId, String name, int avatar) {
         roomOfPlayer.put(playerId, room.code);
-        if (!room.join(playerId, name)) {
+        if (!room.join(playerId, name, avatar)) {
             roomOfPlayer.remove(playerId);
             throw new IllegalMoveException("Could not take a seat");
         }

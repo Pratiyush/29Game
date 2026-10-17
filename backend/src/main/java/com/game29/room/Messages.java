@@ -14,7 +14,7 @@ public final class Messages {
         }
     }
 
-    public record SeatInfo(int seat, String name, boolean bot, boolean connected) {}
+    public record SeatInfo(int seat, String name, boolean bot, boolean connected, int avatar) {}
 
     public record RoomInfo(String code, boolean isPublic, int hostSeat, String status, List<SeatInfo> seats, int yourSeat) {}
 
@@ -33,6 +33,13 @@ public final class Messages {
     public record Error(String type, String message) {
         public Error(String message) {
             this("error", message);
+        }
+    }
+
+    /** A quick reaction from a seat, shown as a bubble over its avatar. */
+    public record Emote(String type, int seat, String emote) {
+        public Emote(int seat, String emote) {
+            this("emote", seat, emote);
         }
     }
 

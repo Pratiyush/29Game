@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart' hide Card;
 
 import '../config.dart';
-import '../engine/bot.dart';
 import '../net/session.dart';
 import '../prefs.dart';
 import 'card_sprite.dart';
 import 'nearby_screen.dart';
+import 'profile_screens.dart';
 import 'session_screen.dart';
 import 'theme.dart';
 
+/// Home: profile header, one big Play button, and the other ways to play.
+/// Modelled on what the most-installed 29 apps open with.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.prefs});
 
@@ -19,8 +21,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late final TextEditingController _name = TextEditingController(text: widget.prefs.name);
-  late BotLevel _level = widget.prefs.botLevel;
+  Prefs get prefs => widget.prefs;
 
   @override
   void didChangeDependencies() {
@@ -28,39 +29,37 @@ class _HomeScreenState extends State<HomeScreen> {
     precacheCards(context);
   }
 
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
-  }
-
-  String get _playerName {
-    final n = _name.text.trim();
-    widget.prefs.name = n;
-    return n.isEmpty ? 'Player' : n;
-  }
+  String get _playerName => prefs.name.isEmpty ? 'Player' : prefs.name;
 
   void _open(TableSession session) {
-    FocusScope.of(context).unfocus();
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => SessionScreen(session: session)));
   }
 
   void _playOffline() {
-    _open(TableSession.offline(name: _playerName, playerId: widget.prefs.playerId, level: _level));
-  }
-
-  void _online(Map<String, dynamic> intent) {
-    _open(TableSession.online(name: _playerName, playerId: widget.prefs.playerId, intent: intent));
-  }
-
-  void _openNearby() {
-    FocusScope.of(context).unfocus();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => NearbyScreen(prefs: widget.prefs, name: _playerName, level: _level),
+    _open(
+      TableSession.offline(
+        name: _playerName,
+        playerId: prefs.playerId,
+        level: prefs.botLevel,
+        avatar: prefs.avatar,
+        botDelay: prefs.speed.botDelay,
       ),
     );
   }
+
+  void _online(Map<String, dynamic> intent) {
+    _open(TableSession.online(name: _playerName, playerId: prefs.playerId, intent: intent, avatar: prefs.avatar));
+  }
+
+  void _openNearby() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => NearbyScreen(prefs: prefs, name: _playerName, level: prefs.botLevel),
+      ),
+    );
+  }
+
+  void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
 
   Future<void> _joinWithCode() async {
     final controller = TextEditingController();
@@ -75,7 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
           maxLength: 5,
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700, letterSpacing: 8),
-          decoration: const InputDecoration(hintText: 'CODE'),
+          decoration: const InputDecoration(hintText: 'CODE', counterText: ''),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
@@ -89,13 +88,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showOnlineMenu() {
-    FocusScope.of(context).unfocus();
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: C.panelSolid,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg))),
       builder: (ctx) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -103,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 width: 40,
                 height: 4,
-                margin: const EdgeInsets.only(bottom: 18),
+                margin: const EdgeInsets.only(bottom: 14),
                 decoration: BoxDecoration(color: C.faint, borderRadius: BorderRadius.circular(2)),
               ),
               _ModeTile(
@@ -144,44 +143,101 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final topBar = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 10, 0),
+      child: Row(
+        children: [
+          ProfileHeader(prefs: prefs),
+          const Spacer(),
+          _IconAction(icon: Icons.menu_book_rounded, label: 'Rules', onTap: () => _push(const RulesScreen())),
+          _IconAction(
+            icon: Icons.leaderboard_rounded,
+            label: 'Stats',
+            onTap: () => _push(StatsScreen(prefs: prefs)),
+          ),
+          _IconAction(icon: Icons.settings_rounded, label: 'Settings', onTap: () => showSettings(context, prefs)),
+        ],
+      ),
+    );
+
+    final play = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _PlayButton(onTap: _playOffline),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _ModeTile(
+                icon: Icons.public_rounded,
+                title: 'Online',
+                subtitle: 'Quick match or friends',
+                onTap: _showOnlineMenu,
+                compact: true,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ModeTile(
+                icon: Icons.bluetooth_rounded,
+                title: 'Nearby',
+                subtitle: 'Bluetooth, no internet',
+                onTap: _openNearby,
+                compact: true,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          AppConfig.useMockBackend ? 'Online: in-app demo server' : 'Online: ${AppConfig.serverUrl}',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: C.faint, fontSize: 10.5),
+        ),
+      ],
+    );
+
     return Scaffold(
       body: FeltBackground(
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, c) {
-              // Landscape (the normal orientation) puts the wordmark beside the controls
-              // so nothing needs scrolling.
               final wide = c.maxWidth > c.maxHeight;
-              if (!wide) {
-                return Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 440),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [const _Logo(), const SizedBox(height: 26), ..._controls(context, false)],
-                      ),
-                    ),
-                  ),
-                );
-              }
-              return Row(
+              return Column(
                 children: [
-                  const Expanded(child: Center(child: _Logo(compact: true))),
+                  topBar,
                   Expanded(
-                    child: Center(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(8, 12, 28, 12),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 420),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: _controls(context, true),
+                    child: wide
+                        ? Row(
+                            children: [
+                              const Expanded(child: Center(child: _Logo(compact: true))),
+                              Expanded(
+                                child: Center(
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.fromLTRB(8, 8, 28, 12),
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(maxWidth: 400),
+                                      child: play,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Center(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 420),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [const _Logo(), const SizedBox(height: 28), play],
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               );
@@ -191,51 +247,89 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
 
-  List<Widget> _controls(BuildContext context, bool wide) {
-    final gap = wide ? 8.0 : 10.0;
-    return [
-      TextField(
-        controller: _name,
-        maxLength: 16,
-        textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(
-          counterText: '',
-          hintText: 'Your name',
-          prefixIcon: Icon(Icons.person_outline, color: C.muted),
+class _IconAction extends StatelessWidget {
+  const _IconAction({required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: label,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Material(
+        color: C.ink.withValues(alpha: 0.55),
+        shape: CircleBorder(side: BorderSide(color: C.gold.withValues(alpha: 0.45))),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(icon, size: 21, color: C.goldBright),
+          ),
         ),
       ),
-      SizedBox(height: wide ? 12 : 14),
-      _ModeTile(
-        icon: Icons.smart_toy_rounded,
-        title: 'Play with bots',
-        subtitle: 'Offline, starts instantly',
-        primary: true,
-        onTap: _playOffline,
+    ),
+  );
+}
+
+/// The one obvious thing to do: start a game against bots right now.
+class _PlayButton extends StatelessWidget {
+  const _PlayButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    // Decorate outside the ink layer so the shadow and the ripple share the rounded shape.
+    final radius = BorderRadius.circular(AppRadius.lg);
+    return Container(
+      height: 76,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [C.goldBright, C.gold, C.goldDeep],
+        ),
+        borderRadius: radius,
+        boxShadow: [BoxShadow(color: C.gold.withValues(alpha: 0.3), blurRadius: 22, offset: const Offset(0, 6))],
       ),
-      SizedBox(height: gap),
-      _ModeTile(
-        icon: Icons.public_rounded,
-        title: 'Play online',
-        subtitle: 'Quick match or a table for friends',
-        onTap: _showOnlineMenu,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.play_arrow_rounded, color: C.ink, size: 38),
+              SizedBox(width: 6),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'PLAY NOW',
+                    style: TextStyle(
+                      color: C.ink,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      height: 1.05,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  Text('vs bots · works offline', style: TextStyle(color: Color(0xB3071A12), fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
-      SizedBox(height: gap),
-      _ModeTile(
-        icon: Icons.bluetooth_rounded,
-        title: 'Play nearby',
-        subtitle: 'Bluetooth, no internet needed',
-        onTap: _openNearby,
-      ),
-      SizedBox(height: wide ? 14 : 22),
-      _BotSkill(level: _level, onChanged: (l) => setState(() => widget.prefs.botLevel = _level = l)),
-      const SizedBox(height: 12),
-      Text(
-        AppConfig.useMockBackend ? 'Online: in-app demo server' : 'Online: ${AppConfig.serverUrl}',
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: C.faint, fontSize: 11),
-      ),
-    ];
+    );
   }
 }
 
@@ -249,30 +343,31 @@ class _Logo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          height: compact ? 108 : 128,
+          height: compact ? 116 : 132,
           child: Stack(
             alignment: Alignment.bottomCenter,
             children: [
               for (final (i, code) in _fan.indexed)
                 Transform.translate(
-                  offset: Offset((i - 1.5) * (compact ? 29 : 34), -(1.5 - (i - 1.5).abs()) * 6),
+                  offset: Offset((i - 1.5) * (compact ? 30 : 36), -(1.5 - (i - 1.5).abs()) * 7),
                   child: Transform.rotate(
-                    angle: (i - 1.5) * 0.16,
+                    angle: (i - 1.5) * 0.17,
                     alignment: Alignment.bottomCenter,
-                    child: CardSprite(code: code, width: compact ? 64 : 76),
+                    child: CardSprite(code: code, width: compact ? 70 : 80, elevation: 1.5),
                   ),
                 ),
             ],
           ),
         ),
-        SizedBox(height: compact ? 12 : 18),
-        GoldText('29', size: compact ? 62 : 76, letterSpacing: -2),
+        SizedBox(height: compact ? 10 : 16),
+        GoldText('29', size: compact ? 60 : 76, letterSpacing: -2),
         const SizedBox(height: 2),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
+        const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             _Rule(),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),
@@ -308,18 +403,17 @@ class _ModeTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.primary = false,
+    this.compact = false,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  final bool primary;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final fg = primary ? C.ink : C.cream;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -327,89 +421,46 @@ class _ModeTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: primary
-                ? const LinearGradient(colors: [C.goldBright, C.gold])
-                : LinearGradient(colors: [Colors.white.withValues(alpha: 0.09), Colors.white.withValues(alpha: 0.04)]),
+            gradient: LinearGradient(
+              colors: [Colors.white.withValues(alpha: 0.10), Colors.white.withValues(alpha: 0.04)],
+            ),
             borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: primary ? Colors.transparent : Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: C.gold.withValues(alpha: 0.22)),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 14, vertical: compact ? 11 : 13),
           child: Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: compact ? 36 : 42,
+                height: compact ? 36 : 42,
                 decoration: BoxDecoration(
-                  color: primary ? C.ink.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.07),
+                  color: C.gold.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: primary ? C.ink : C.gold, size: 22),
+                child: Icon(icon, color: C.gold, size: compact ? 20 : 22),
               ),
-              const SizedBox(width: 14),
+              SizedBox(width: compact ? 10 : 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: TextStyle(color: fg, fontSize: 15.5, fontWeight: FontWeight.w600),
+                      style: const TextStyle(color: C.cream, fontSize: 15, fontWeight: FontWeight.w600),
                     ),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        color: primary ? C.ink.withValues(alpha: 0.7) : C.muted,
-                        fontSize: 12,
-                        height: 1.3,
-                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: C.muted, fontSize: 11.5, height: 1.3),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: primary ? C.ink.withValues(alpha: 0.6) : C.faint),
+              if (!compact) const Icon(Icons.chevron_right_rounded, color: C.faint),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _BotSkill extends StatelessWidget {
-  const _BotSkill({required this.level, required this.onChanged});
-
-  final BotLevel level;
-  final ValueChanged<BotLevel> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Panel(
-      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text(
-              'Bot skill',
-              style: TextStyle(color: C.muted, fontSize: 13, fontWeight: FontWeight.w500),
-            ),
-          ),
-          for (final l in BotLevel.values)
-            GestureDetector(
-              onTap: () => onChanged(l),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                margin: const EdgeInsets.only(left: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                decoration: BoxDecoration(
-                  color: level == l ? C.gold : Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-                child: Text(
-                  l == BotLevel.easy ? 'Easy' : 'Normal',
-                  style: TextStyle(color: level == l ? C.ink : C.muted, fontWeight: FontWeight.w600, fontSize: 13),
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }

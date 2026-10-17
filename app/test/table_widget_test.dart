@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:game29/engine/bot.dart';
 import 'package:game29/net/session.dart';
+import 'package:game29/prefs.dart';
+import 'package:game29/ui/feel.dart';
 import 'package:game29/ui/session_screen.dart';
 import 'package:game29/ui/theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Prefs.load();
+    Sfx.enabled = false;
+  });
+
   // Landscape is the orientation the game runs in (see lib/main.dart); the last case keeps the
   // portrait layout honest in case the lock is ever lifted.
   const sizes = {

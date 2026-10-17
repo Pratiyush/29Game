@@ -15,17 +15,25 @@ abstract class GameConnection {
 }
 
 class SeatInfo {
-  const SeatInfo(this.seat, this.name, this.bot, this.connected);
+  const SeatInfo(this.seat, this.name, this.bot, this.connected, [this.avatar = -1]);
 
   final int seat;
   final String name;
   final bool bot;
   final bool connected;
 
-  factory SeatInfo.fromJson(Json j) =>
-      SeatInfo(j['seat'] as int, j['name'] as String, j['bot'] as bool, j['connected'] as bool);
+  /// Index into assets/avatars, or -1 for none.
+  final int avatar;
 
-  Json toJson() => {'seat': seat, 'name': name, 'bot': bot, 'connected': connected};
+  factory SeatInfo.fromJson(Json j) => SeatInfo(
+    j['seat'] as int,
+    j['name'] as String,
+    j['bot'] as bool,
+    j['connected'] as bool,
+    (j['avatar'] as int?) ?? -1,
+  );
+
+  Json toJson() => {'seat': seat, 'name': name, 'bot': bot, 'connected': connected, 'avatar': avatar};
 }
 
 class RoomInfo {
