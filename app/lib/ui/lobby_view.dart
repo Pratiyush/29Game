@@ -5,7 +5,7 @@ import '../net/connection.dart';
 import '../net/session.dart';
 import 'theme.dart';
 
-/// Waiting room: who is seated, the table code to share, and host controls.
+/// Waiting room: the table with seats filling up, the code to share, and host controls.
 class LobbyView extends StatelessWidget {
   const LobbyView({super.key, required this.session, required this.onLeave});
 
@@ -14,55 +14,178 @@ class LobbyView extends StatelessWidget {
 
   String get _title => switch (session.kind) {
     SessionKind.offline => 'Dealing…',
-    SessionKind.online => session.room?.isPublic ?? true ? 'Finding players…' : 'Your table',
-    SessionKind.nearbyHost => 'Hosting nearby table',
-    SessionKind.nearbyGuest => 'Joining nearby table',
+    SessionKind.online => (session.room?.isPublic ?? true) ? 'Finding players' : 'Your table',
+    SessionKind.nearbyHost => 'Hosting nearby',
+    SessionKind.nearbyGuest => 'Joining table',
   };
 
   @override
   Widget build(BuildContext context) {
     final room = session.room;
-    final text = Theme.of(context).textTheme;
     return Column(
       children: [
         Row(
           children: [
-            IconButton(onPressed: onLeave, icon: const Icon(Icons.arrow_back)),
-            Expanded(child: Text(_title, style: text.titleLarge)),
+            IconButton(onPressed: onLeave, icon: const Icon(Icons.arrow_back_rounded), color: C.cream),
+            Expanded(
+              child: Text(_title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            ),
             _ConnectionDot(status: session.connectionStatus),
-            const SizedBox(width: 16),
+            const SizedBox(width: 18),
           ],
         ),
         Expanded(
           child: room == null
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    if (!room.isPublic) _CodeCard(code: room.code, nearby: session.kind == SessionKind.nearbyHost),
-                    const SizedBox(height: 16),
-                    for (var i = 0; i < 4; i++) _SeatTile(seat: i, info: room.seats[i], room: room),
-                    const SizedBox(height: 24),
-                    if (room.amHost && !room.isPublic) ...[
-                      OutlinedButton.icon(
-                        onPressed: room.seats.contains(null) ? session.addBot : null,
-                        icon: const Icon(Icons.smart_toy),
-                        label: const Text('Add a bot'),
+              ? const Center(child: CircularProgressIndicator(color: C.gold))
+              : LayoutBuilder(
+                  builder: (context, c) => SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: c.maxHeight - 24, maxWidth: 420),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            if (!room.isPublic) ...[
+                              _CodeCard(code: room.code, nearby: session.kind == SessionKind.nearbyHost),
+                              const SizedBox(height: 18),
+                            ],
+                            _LobbyTable(room: room),
+                            const SizedBox(height: 20),
+                            if (room.amHost && !room.isPublic) ...[
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: room.seats.contains(null) ? session.addBot : null,
+                                      icon: const Icon(Icons.smart_toy_rounded, size: 18),
+                                      label: const Text('Add bot'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: FilledButton.icon(
+                                      onPressed: session.startGame,
+                                      icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                                      label: const Text('Start'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              const _Hint('Empty seats are filled with bots when you start.'),
+                            ] else if (room.isPublic)
+                              const _Hint('Starts when the table is full, or with bots after a few seconds.')
+                            else
+                              const _Hint('Waiting for the host to start…'),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: session.startGame,
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Start (bots fill empty seats)'),
-                      ),
-                    ] else if (room.isPublic)
-                      const _Hint('The game starts when the table is full, or with bots after a few seconds.')
-                    else
-                      const _Hint('Waiting for the host to start…'),
-                  ],
+                    ),
+                  ),
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// The four seats arranged as they will be at the table, so joining feels like sitting down.
+class _LobbyTable extends StatelessWidget {
+  const _LobbyTable({required this.room});
+
+  final RoomInfo room;
+
+  @override
+  Widget build(BuildContext context) {
+    // Seats relative to me: me at the bottom, partner opposite, opponents left and right.
+    int seatAt(int relative) => (room.yourSeat + relative) % 4;
+    return SizedBox(
+      height: 290,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          const Padding(padding: EdgeInsets.all(14), child: TableSurface()),
+          Opacity(
+            opacity: 0.1,
+            child: Text(
+              '29',
+              style: TextStyle(fontSize: 64, fontWeight: FontWeight.w800, color: C.goldBright, letterSpacing: -2),
+            ),
+          ),
+          Align(
+            alignment: const Alignment(0, -1),
+            child: _LobbySeat(room: room, seat: seatAt(2)),
+          ),
+          Align(
+            alignment: const Alignment(-1, 0),
+            child: _LobbySeat(room: room, seat: seatAt(3)),
+          ),
+          Align(
+            alignment: const Alignment(1, 0),
+            child: _LobbySeat(room: room, seat: seatAt(1)),
+          ),
+          Align(
+            alignment: const Alignment(0, 1),
+            child: _LobbySeat(room: room, seat: room.yourSeat),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LobbySeat extends StatelessWidget {
+  const _LobbySeat({required this.room, required this.seat});
+
+  final RoomInfo room;
+  final int seat;
+
+  @override
+  Widget build(BuildContext context) {
+    final info = room.seats[seat];
+    final me = seat == room.yourSeat;
+    final color = teamColor(seat, room.yourSeat);
+    final sameTeam = seat % 2 == room.yourSeat % 2;
+    return SizedBox(
+      width: 104,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: C.ink.withValues(alpha: 0.85),
+              border: Border.all(
+                color: info == null ? C.faint.withValues(alpha: 0.45) : color,
+                width: info == null ? 1 : 2,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: info == null
+                ? const Icon(Icons.person_add_alt_1_rounded, color: C.faint, size: 20)
+                : info.bot
+                ? Icon(Icons.smart_toy_rounded, color: color, size: 24)
+                : Text(
+                    info.name.characters.first.toUpperCase(),
+                    style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 21),
+                  ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            info == null ? 'Open seat' : (me ? 'You' : info.name),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: info == null ? C.faint : C.cream),
+          ),
+          Text(
+            info != null && seat == room.hostSeat ? 'host' : (sameTeam ? 'your team' : 'opponent'),
+            style: const TextStyle(fontSize: 10, color: C.faint),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -75,71 +198,38 @@ class _CodeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.panel, borderRadius: BorderRadius.circular(16)),
+    return Panel(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+      border: C.gold.withValues(alpha: 0.28),
       child: Column(
         children: [
           Text(
-            nearby ? 'Friends nearby can now find your table' : 'Share this code with friends',
-            style: const TextStyle(color: Colors.white70),
+            nearby ? 'FRIENDS NEARBY CAN JOIN THIS TABLE' : 'SHARE THIS CODE',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: C.muted, fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                code,
-                style: const TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 8,
-                  color: AppColors.gold,
+              const SizedBox(width: 34),
+              GoldText(code, size: 40, letterSpacing: 7),
+              SizedBox(
+                width: 34,
+                child: IconButton(
+                  tooltip: 'Copy code',
+                  icon: const Icon(Icons.copy_rounded, size: 18, color: C.muted),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(const SnackBar(content: Text('Code copied')));
+                  },
                 ),
-              ),
-              IconButton(
-                tooltip: 'Copy',
-                icon: const Icon(Icons.copy),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: code));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Code copied')));
-                },
               ),
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SeatTile extends StatelessWidget {
-  const _SeatTile({required this.seat, required this.info, required this.room});
-
-  final int seat;
-  final SeatInfo? info;
-  final RoomInfo room;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = teamColor(seat, room.yourSeat);
-    final team = seat % 2 == room.yourSeat % 2 ? 'Your team' : 'Opponents';
-    final s = info;
-    return Card(
-      color: AppColors.panel,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color,
-          foregroundColor: AppColors.ink,
-          child: s == null
-              ? const Icon(Icons.hourglass_empty)
-              : s.bot
-              ? const Icon(Icons.smart_toy)
-              : Text(s.name.characters.first.toUpperCase()),
-        ),
-        title: Text(s == null ? 'Waiting…' : (seat == room.yourSeat ? '${s.name} (you)' : s.name)),
-        subtitle: Text(team + (seat == room.hostSeat ? ' · host' : '')),
-        trailing: s != null && !s.connected ? const Icon(Icons.wifi_off, color: Colors.white38) : null,
       ),
     );
   }
@@ -154,7 +244,7 @@ class _Hint extends StatelessWidget {
   Widget build(BuildContext context) => Text(
     text,
     textAlign: TextAlign.center,
-    style: const TextStyle(color: Colors.white60),
+    style: const TextStyle(color: C.faint, fontSize: 12, height: 1.4),
   );
 }
 
@@ -165,14 +255,26 @@ class _ConnectionDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      'connected' => Colors.greenAccent,
-      'reconnecting' || 'connecting' => Colors.amber,
-      _ => Colors.redAccent,
+    final (color, label) = switch (status) {
+      'connected' => (C.good, 'Connected'),
+      'reconnecting' || 'connecting' => (C.gold, 'Connecting…'),
+      _ => (C.bad, 'Offline'),
     };
-    return Tooltip(
-      message: status,
-      child: Icon(Icons.circle, size: 12, color: color),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 6)],
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontSize: 11, color: C.muted)),
+      ],
     );
   }
 }

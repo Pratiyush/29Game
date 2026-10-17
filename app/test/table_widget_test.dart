@@ -31,7 +31,8 @@ Future<void> _offlineTable(WidgetTester tester, Size size) async {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
-  expect(find.text('Us 0'), findsOneWidget);
+  expect(find.text('US'), findsOneWidget);
+  expect(find.text('THEM'), findsOneWidget);
   expect(find.bySemanticsLabel(RegExp(r'^card ')), findsNWidgets(4));
 
   // Play bots until it is my turn to bid, then make sure bid buttons are offered.
