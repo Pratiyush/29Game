@@ -7,7 +7,8 @@ import 'ui/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  // The game is designed for a landscape table; see lib/ui/layout.dart.
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
   final prefs = await Prefs.load();
   runApp(Game29App(prefs: prefs));
 }

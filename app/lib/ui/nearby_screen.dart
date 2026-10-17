@@ -86,8 +86,32 @@ class _NearbyScreenState extends State<NearbyScreen> {
   }
 
   Widget _body(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+    return LayoutBuilder(
+      builder: (context, c) {
+        // Landscape: hosting on one side, the tables found on the other.
+        if (c.maxWidth > c.maxHeight) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 8, 10, 20), child: _hostCard()),
+              ),
+              Expanded(
+                child: ListView(padding: const EdgeInsets.fromLTRB(10, 8, 20, 20), children: _found()),
+              ),
+            ],
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          children: [_hostCard(), const SizedBox(height: 26), ..._found()],
+        );
+      },
+    );
+  }
+
+  Widget _hostCard() {
+    return Column(
       children: [
         Panel(
           padding: const EdgeInsets.all(18),
@@ -116,81 +140,85 @@ class _NearbyScreenState extends State<NearbyScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 26),
-        Row(
-          children: [
-            const Text('TABLES NEARBY', style: TextStyle(fontSize: 10, letterSpacing: 2, color: C.muted)),
-            const SizedBox(width: 10),
-            if (_error == null)
-              const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.6, color: C.gold)),
-          ],
-        ),
-        const SizedBox(height: 10),
-        if (_error != null)
-          Panel(
-            border: C.bad.withValues(alpha: 0.4),
-            child: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: C.bad, size: 18),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(_error!, style: const TextStyle(color: C.cream, fontSize: 12.5, height: 1.4)),
-                ),
-              ],
-            ),
-          )
-        else if (_tables.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 18),
-            child: Text(
-              'Searching… ask a friend to tap "Host a table".',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: C.faint, fontSize: 12.5),
-            ),
+      ],
+    );
+  }
+
+  List<Widget> _found() {
+    return [
+      Row(
+        children: [
+          const Text('TABLES NEARBY', style: TextStyle(fontSize: 10, letterSpacing: 2, color: C.muted)),
+          const SizedBox(width: 10),
+          if (_error == null)
+            const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.6, color: C.gold)),
+        ],
+      ),
+      const SizedBox(height: 10),
+      if (_error != null)
+        Panel(
+          border: C.bad.withValues(alpha: 0.4),
+          child: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: C.bad, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(_error!, style: const TextStyle(color: C.cream, fontSize: 12.5, height: 1.4)),
+              ),
+            ],
           ),
-        for (final t in _tables)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                onTap: () =>
-                    _open(TableSession.nearbyGuest(name: widget.name, playerId: widget.prefs.playerId, table: t)),
-                child: Panel(
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.07),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.table_bar_rounded, color: C.gold, size: 20),
+        )
+      else if (_tables.isEmpty)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 18),
+          child: Text(
+            'Searching… ask a friend to tap "Host a table".',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: C.faint, fontSize: 12.5),
+          ),
+        ),
+      for (final t in _tables)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              onTap: () =>
+                  _open(TableSession.nearbyGuest(name: widget.name, playerId: widget.prefs.playerId, table: t)),
+              child: Panel(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${t.hostName}’s table',
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                            ),
-                            Text('Code ${t.code}', style: const TextStyle(color: C.muted, fontSize: 12)),
-                          ],
-                        ),
+                      child: const Icon(Icons.table_bar_rounded, color: C.gold, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${t.hostName}’s table',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                          ),
+                          Text('Code ${t.code}', style: const TextStyle(color: C.muted, fontSize: 12)),
+                        ],
                       ),
-                      const Icon(Icons.chevron_right_rounded, color: C.faint),
-                    ],
-                  ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: C.faint),
+                  ],
                 ),
               ),
             ),
           ),
-      ],
-    );
+        ),
+    ];
   }
 }
 

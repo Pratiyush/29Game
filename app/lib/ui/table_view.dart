@@ -64,90 +64,129 @@ class _TableViewState extends State<TableView> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, c) {
-        final cardW = min(74.0, (c.maxWidth - 28) / 5.2);
+        // The game is played in landscape (see lib/main.dart); portrait still lays out correctly.
+        final wide = c.maxWidth > c.maxHeight;
         final roundDone = v.phase == Phase.roundOver || v.phase == Phase.matchOver;
         final trick = roundDone ? const <PlayedCard>[] : (_showingLastTrick && v.trick.isEmpty ? v.lastTrick : v.trick);
+        final cardW = wide
+            ? max(48.0, min(86.0, min((c.maxHeight - 196) / CardSprite.aspect, (c.maxWidth - 230) / 7.2)))
+            : min(74.0, (c.maxWidth - 28) / 5.2);
         return Stack(
           children: [
-            Column(
-              children: [
-                _Scoreboard(view: v, session: session, onLeave: widget.onLeave),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, table) {
-                      // The seats sit on the rail, so the stack is exactly the size of the table.
-                      // Fill the space, but keep the oval from stretching into an egg on tall screens.
-                      final size = Size(table.maxWidth - 8, min(table.maxHeight, table.maxWidth * 1.55));
-                      return Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Center(
-                            child: SizedBox(
-                              width: size.width,
-                              height: size.height,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  const TableSurface(),
-                                  _SeatPod(
-                                    view: v,
-                                    session: session,
-                                    seat: _seatAt(2),
-                                    place: _Place.top,
-                                    pulse: _pulse,
-                                  ),
-                                  _SeatPod(
-                                    view: v,
-                                    session: session,
-                                    seat: _seatAt(3),
-                                    place: _Place.left,
-                                    pulse: _pulse,
-                                  ),
-                                  _SeatPod(
-                                    view: v,
-                                    session: session,
-                                    seat: _seatAt(1),
-                                    place: _Place.right,
-                                    pulse: _pulse,
-                                  ),
-                                  _SeatPod(
-                                    view: v,
-                                    session: session,
-                                    seat: v.seat,
-                                    place: _Place.bottom,
-                                    pulse: _pulse,
-                                  ),
-                                  if (trick.isEmpty && !roundDone)
-                                    _CenterPlaque(view: v, session: session, showingSweep: _showingLastTrick),
-                                  _Trick(
-                                    trick: trick,
-                                    winner: _showingLastTrick ? v.lastTrickWinner : -1,
-                                    showWinner: _showingLastTrick,
-                                    rel: rel,
-                                    cardW: cardW * 0.8,
-                                    collect: _collect,
-                                    round: v.round,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-                _ActionBar(view: v, session: session),
-                _Hand(view: v, cardW: cardW, onTap: _tapCard),
-                const SizedBox(height: 6),
-              ],
-            ),
+            if (wide) _wideBody(c, trick, roundDone, cardW) else _tallBody(trick, roundDone, cardW),
             if (roundDone) _RoundSummary(view: v, session: session),
           ],
         );
       },
     );
   }
+
+  Widget _tallBody(List<PlayedCard> trick, bool roundDone, double cardW) {
+    return Column(
+      children: [
+        _Scoreboard(view: v, session: session, onLeave: widget.onLeave),
+        Expanded(
+          child: _table(trick: trick, roundDone: roundDone, cardW: cardW, wide: false),
+        ),
+        _ActionBar(view: v, session: session),
+        _Hand(view: v, cardW: cardW, onTap: _tapCard),
+        const SizedBox(height: 6),
+      ],
+    );
+  }
+
+  /// Landscape: the table fills the screen and the hand is dealt over its lower edge, with
+  /// your seat and the action buttons in the free space either side.
+  Widget _wideBody(BoxConstraints c, List<PlayedCard> trick, bool roundDone, double cardW) {
+    final handH = cardW * CardSprite.aspect + 16;
+    const scoreH = 56.0;
+    final sideGap = max(96.0, c.maxWidth * 0.13);
+    return Stack(
+      children: [
+        Positioned(
+          top: scoreH,
+          left: 0,
+          right: 0,
+          bottom: handH * 0.52,
+          child: _table(trick: trick, roundDone: roundDone, cardW: cardW, wide: true),
+        ),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _Scoreboard(view: v, session: session, onLeave: widget.onLeave, compact: true),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: handH + 8,
+          child: Center(
+            child: _ActionBar(view: v, session: session, compact: true),
+          ),
+        ),
+        Positioned(
+          left: sideGap,
+          right: sideGap,
+          bottom: 6,
+          height: handH,
+          child: _Hand(view: v, cardW: cardW, onTap: _tapCard),
+        ),
+        Positioned(left: 6, bottom: 10, child: _seatPod(v.seat, _Place.bottom, compact: true)),
+      ],
+    );
+  }
+
+  /// The felt oval with the seats on its rail and the trick in the middle.
+  Widget _table({required List<PlayedCard> trick, required bool roundDone, required double cardW, required bool wide}) {
+    return LayoutBuilder(
+      builder: (context, table) {
+        // The seats sit on the rail, so the stack is exactly the size of the table. Keep the oval
+        // from stretching into an egg on tall screens or a pancake on wide ones.
+        final size = wide
+            ? Size(min(table.maxWidth - 8, table.maxHeight * 2.3), table.maxHeight)
+            : Size(table.maxWidth - 8, min(table.maxHeight, table.maxWidth * 1.55));
+        return Center(
+          child: SizedBox(
+            width: size.width,
+            height: size.height,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const TableSurface(),
+                _seatPod(_seatAt(2), _Place.top, compact: wide),
+                _seatPod(_seatAt(3), _Place.left, compact: wide, y: wide ? -0.12 : -0.02),
+                _seatPod(_seatAt(1), _Place.right, compact: wide, y: wide ? -0.12 : -0.02),
+                if (!wide) _seatPod(v.seat, _Place.bottom),
+                Align(
+                  alignment: Alignment.center,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (trick.isEmpty && !roundDone)
+                        _CenterPlaque(view: v, session: session, showingSweep: _showingLastTrick),
+                      _Trick(
+                        trick: trick,
+                        winner: _showingLastTrick ? v.lastTrickWinner : -1,
+                        showWinner: _showingLastTrick,
+                        rel: rel,
+                        cardW: cardW * (wide ? 0.62 : 0.8),
+                        spreadY: wide ? 0.5 : 0.52,
+                        collect: _collect,
+                        round: v.round,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _seatPod(int seat, _Place place, {bool compact = false, double? y}) =>
+      _SeatPod(view: v, session: session, seat: seat, place: place, pulse: _pulse, compact: compact, y: y);
 
   int _seatAt(int relative) => (v.seat + relative) % 4;
 
@@ -164,11 +203,18 @@ class _TableViewState extends State<TableView> with TickerProviderStateMixin {
 // ------------------------------------------------------------------ scoreboard
 
 class _Scoreboard extends StatelessWidget {
-  const _Scoreboard({required this.view, required this.session, required this.onLeave});
+  const _Scoreboard({required this.view, required this.session, required this.onLeave, this.compact = false});
 
   final PlayerView view;
   final TableSession session;
   final VoidCallback onLeave;
+
+  /// Landscape: one row only, so the table keeps the height.
+  final bool compact;
+
+  /// Landscape gives the chips a fixed width so the contract line can share the row.
+  static Widget _chipSlot(bool compact, Widget chip) =>
+      compact ? SizedBox(width: 132, child: chip) : Expanded(child: chip);
 
   @override
   Widget build(BuildContext context) {
@@ -191,23 +237,24 @@ class _Scoreboard extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                   tooltip: 'Leave table',
                 ),
-                Expanded(
-                  child: _TeamChip(label: 'US', color: C.us, matchScore: v.matchScore[us], points: v.teamPoints[us]),
+                _chipSlot(
+                  compact,
+                  _TeamChip(label: 'US', color: C.us, matchScore: v.matchScore[us], points: v.teamPoints[us]),
                 ),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: _TeamChip(
-                    label: 'THEM',
-                    color: C.them,
-                    matchScore: v.matchScore[them],
-                    points: v.teamPoints[them],
-                  ),
+                _chipSlot(
+                  compact,
+                  _TeamChip(label: 'THEM', color: C.them, matchScore: v.matchScore[them], points: v.teamPoints[them]),
                 ),
+                if (compact && v.bidder != -1 && v.phase != Phase.bidding)
+                  Expanded(
+                    child: _ContractLine(view: v, session: session),
+                  ),
                 const SizedBox(width: 10),
                 _TrumpBadge(view: v),
               ],
             ),
-            if (v.bidder != -1 && v.phase != Phase.bidding) ...[
+            if (!compact && v.bidder != -1 && v.phase != Phase.bidding) ...[
               const SizedBox(height: 5),
               _ContractLine(view: v, session: session),
             ],
@@ -394,6 +441,8 @@ class _SeatPod extends StatelessWidget {
     required this.seat,
     required this.place,
     required this.pulse,
+    this.compact = false,
+    this.y,
   });
 
   final PlayerView view;
@@ -401,6 +450,12 @@ class _SeatPod extends StatelessWidget {
   final int seat;
   final _Place place;
   final Animation<double> pulse;
+
+  /// Landscape: smaller avatars so four seats and a trick fit in a short table.
+  final bool compact;
+
+  /// Overrides where a side seat sits vertically on the rail.
+  final double? y;
 
   @override
   Widget build(BuildContext context) {
@@ -417,7 +472,7 @@ class _SeatPod extends StatelessWidget {
       color: color,
       active: active,
       pulse: pulse,
-      size: me ? 34 : 44,
+      size: compact ? (me ? 30 : 38) : (me ? 34 : 44),
     );
 
     final label = Column(
@@ -461,17 +516,21 @@ class _SeatPod extends StatelessWidget {
             children: [avatar, const SizedBox(width: 8), label, const SizedBox(width: 6), bubble],
           )
         : SizedBox(
-            width: 84,
+            width: compact ? 78 : 84,
             child: Column(mainAxisSize: MainAxisSize.min, children: [avatar, const SizedBox(height: 5), label, bubble]),
           );
 
     final alignment = switch (place) {
       _Place.top => const Alignment(0, -1),
-      _Place.left => const Alignment(-1, -0.02),
-      _Place.right => const Alignment(1, -0.02),
+      _Place.left => Alignment(-1, y ?? -0.02),
+      _Place.right => Alignment(1, y ?? -0.02),
       _Place.bottom => const Alignment(-0.92, 1),
     };
 
+    // In the landscape bottom row the pod is placed by the parent, not on the rail.
+    if (place == _Place.bottom && compact) {
+      return Padding(padding: const EdgeInsets.only(left: 4, bottom: 10), child: pod);
+    }
     return Align(
       alignment: alignment,
       child: Padding(padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2), child: pod),
@@ -636,6 +695,7 @@ class _Trick extends StatelessWidget {
     required this.showWinner,
     required this.rel,
     required this.cardW,
+    required this.spreadY,
     required this.collect,
     required this.round,
   });
@@ -645,6 +705,7 @@ class _Trick extends StatelessWidget {
   final bool showWinner;
   final int Function(int) rel;
   final double cardW;
+  final double spreadY;
   final Animation<double> collect;
   final int round;
 
@@ -654,7 +715,7 @@ class _Trick extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final h = cardW * CardSprite.aspect;
-    final spread = Offset(cardW * 0.95, h * 0.52);
+    final spread = Offset(cardW * 0.95, h * spreadY);
     return IgnorePointer(
       child: SizedBox(
         width: cardW * 3.6,
@@ -790,10 +851,11 @@ class _CenterPlaque extends StatelessWidget {
 // ------------------------------------------------------------------ actions
 
 class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.view, required this.session});
+  const _ActionBar({required this.view, required this.session, this.compact = false});
 
   final PlayerView view;
   final TableSession session;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -805,10 +867,14 @@ class _ActionBar extends StatelessWidget {
       case Phase.bidding when mine:
         child = _BidStrip(view: v, session: session);
       case Phase.bidding:
+        // Landscape: the pulsing ring on the seat already says whose turn it is, and the felt
+        // under this bar is where cards land, so stay out of the way.
+        if (compact) return const SizedBox.shrink();
         child = _Waiting('$turnName is bidding');
       case Phase.chooseTrump when mine:
         child = const _Prompt('Pick a card to hide as trump', icon: Icons.visibility_off_rounded, strong: true);
       case Phase.chooseTrump:
+        if (compact) return const SizedBox.shrink();
         child = _Waiting('$turnName is choosing trump');
       case Phase.playing when mine:
         child = Row(
@@ -833,6 +899,7 @@ class _ActionBar extends StatelessWidget {
           ],
         );
       case Phase.playing:
+        if (compact) return const SizedBox.shrink();
         child = _Waiting(
           v.pairShownBy != -1 && v.tricksPlayed < 8
               ? '$turnName to play · pair by ${session.seatName(v.pairShownBy)}'
@@ -841,7 +908,10 @@ class _ActionBar extends StatelessWidget {
       case Phase.roundOver || Phase.matchOver:
         child = const SizedBox.shrink();
     }
-    return SizedBox(height: 54, child: Center(child: child));
+    return SizedBox(
+      height: compact ? 44 : 54,
+      child: Center(child: child),
+    );
   }
 }
 
@@ -975,6 +1045,8 @@ class _Hand extends StatelessWidget {
         ? v.legal.trumpCards
         : v.legal.cards;
     final n = v.hand.length;
+    final arcK = cardW * 0.016;
+    final maxArc = n <= 1 ? 0.0 : pow((n - 1) / 2, 2) * arcK;
     return SizedBox(
       height: cardW * CardSprite.aspect + 36,
       child: LayoutBuilder(
@@ -982,6 +1054,10 @@ class _Hand extends StatelessWidget {
           final step = n <= 1 ? 0.0 : min(cardW * 0.88, (c.maxWidth - 40 - cardW) / (n - 1));
           final total = cardW + step * max(0, n - 1);
           final left = (c.maxWidth - total) / 2;
+          // Anchor the fan to the bottom of whatever room we were given, keeping a little
+          // headroom so a playable card can lift without being clipped.
+          final base = max(0.0, c.maxHeight - cardW * CardSprite.aspect - maxArc - 2);
+          final lift = min(13.0, base);
           return Stack(
             clipBehavior: Clip.none,
             children: [
@@ -991,6 +1067,9 @@ class _Hand extends StatelessWidget {
                   index: i,
                   count: n,
                   left: left + i * step,
+                  top: base,
+                  arcK: arcK,
+                  lift: lift,
                   cardW: cardW,
                   playable: playable.contains(v.hand[i]),
                   anyPlayable: playable.isNotEmpty,
@@ -1012,6 +1091,9 @@ class _HandCard extends StatelessWidget {
     required this.index,
     required this.count,
     required this.left,
+    required this.top,
+    required this.arcK,
+    required this.lift,
     required this.cardW,
     required this.playable,
     required this.anyPlayable,
@@ -1023,6 +1105,9 @@ class _HandCard extends StatelessWidget {
   final int index;
   final int count;
   final double left;
+  final double top;
+  final double arcK;
+  final double lift;
   final double cardW;
   final bool playable;
   final bool anyPlayable;
@@ -1033,13 +1118,13 @@ class _HandCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final offset = index - (count - 1) / 2;
     // Fan: the cards arc down from the middle and tilt outwards; playable ones lift.
-    final arc = offset * offset * (cardW * 0.016);
+    final arc = offset * offset * arcK;
     return AnimatedPositioned(
       key: ValueKey(code),
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOut,
       left: left,
-      top: 16 + arc - (playable ? 13 : 0),
+      top: top + arc - (playable ? lift : 0),
       child: Semantics(
         button: true,
         enabled: playable,

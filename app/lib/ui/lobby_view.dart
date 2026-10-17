@@ -38,54 +38,98 @@ class LobbyView extends StatelessWidget {
           child: room == null
               ? const Center(child: CircularProgressIndicator(color: C.gold))
               : LayoutBuilder(
-                  builder: (context, c) => SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: c.maxHeight - 24, maxWidth: 420),
-                      child: Center(
-                        child: Column(
+                  builder: (context, c) {
+                    // Landscape: the table sits beside the code and the host controls.
+                    final wide = c.maxWidth > c.maxHeight;
+                    final side = Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!room.isPublic) ...[
+                          _CodeCard(code: room.code, nearby: session.kind == SessionKind.nearbyHost),
+                          const SizedBox(height: 18),
+                        ],
+                        ..._controls(room),
+                      ],
+                    );
+                    if (wide) {
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        child: Row(
                           children: [
-                            if (!room.isPublic) ...[
-                              _CodeCard(code: room.code, nearby: session.kind == SessionKind.nearbyHost),
-                              const SizedBox(height: 18),
-                            ],
-                            _LobbyTable(room: room),
-                            const SizedBox(height: 20),
-                            if (room.amHost && !room.isPublic) ...[
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: room.seats.contains(null) ? session.addBot : null,
-                                      icon: const Icon(Icons.smart_toy_rounded, size: 18),
-                                      label: const Text('Add bot'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: FilledButton.icon(
-                                      onPressed: session.startGame,
-                                      icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                                      label: const Text('Start'),
-                                    ),
-                                  ),
-                                ],
+                            Expanded(
+                              child: Center(
+                                child: SingleChildScrollView(
+                                  child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 380), child: side),
+                                ),
                               ),
-                              const SizedBox(height: 10),
-                              const _Hint('Empty seats are filled with bots when you start.'),
-                            ] else if (room.isPublic)
-                              const _Hint('Starts when the table is full, or with bots after a few seconds.')
-                            else
-                              const _Hint('Waiting for the host to start…'),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              child: Center(child: _LobbyTable(room: room)),
+                            ),
                           ],
                         ),
+                      );
+                    }
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: c.maxHeight - 24, maxWidth: 420),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              if (!room.isPublic) ...[
+                                _CodeCard(code: room.code, nearby: session.kind == SessionKind.nearbyHost),
+                                const SizedBox(height: 18),
+                              ],
+                              _LobbyTable(room: room),
+                              const SizedBox(height: 20),
+                              ..._controls(room),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
         ),
       ],
     );
+  }
+
+  List<Widget> _controls(RoomInfo room) {
+    if (room.amHost && !room.isPublic) {
+      return [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: room.seats.contains(null) ? session.addBot : null,
+                icon: const Icon(Icons.smart_toy_rounded, size: 18),
+                label: const Text('Add bot'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: session.startGame,
+                icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                label: const Text('Start'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        const _Hint('Empty seats are filled with bots when you start.'),
+      ];
+    }
+    return [
+      _Hint(
+        room.isPublic
+            ? 'Starts when the table is full, or with bots after a few seconds.'
+            : 'Waiting for the host to start\u2026',
+      ),
+    ];
   }
 }
 

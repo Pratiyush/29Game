@@ -147,69 +147,102 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: FeltBackground(
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _Logo(),
-                    const SizedBox(height: 26),
-                    TextField(
-                      controller: _name,
-                      maxLength: 16,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        counterText: '',
-                        hintText: 'Your name',
-                        prefixIcon: Icon(Icons.person_outline, color: C.muted),
+          child: LayoutBuilder(
+            builder: (context, c) {
+              // Landscape (the normal orientation) puts the wordmark beside the controls
+              // so nothing needs scrolling.
+              final wide = c.maxWidth > c.maxHeight;
+              if (!wide) {
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [const _Logo(), const SizedBox(height: 26), ..._controls(context, false)],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    _ModeTile(
-                      icon: Icons.smart_toy_rounded,
-                      title: 'Play with bots',
-                      subtitle: 'Offline, starts instantly',
-                      primary: true,
-                      onTap: _playOffline,
+                  ),
+                );
+              }
+              return Row(
+                children: [
+                  const Expanded(child: Center(child: _Logo(compact: true))),
+                  Expanded(
+                    child: Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(8, 12, 28, 12),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 420),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: _controls(context, true),
+                          ),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    _ModeTile(
-                      icon: Icons.public_rounded,
-                      title: 'Play online',
-                      subtitle: 'Quick match or a table for friends',
-                      onTap: _showOnlineMenu,
-                    ),
-                    const SizedBox(height: 10),
-                    _ModeTile(
-                      icon: Icons.bluetooth_rounded,
-                      title: 'Play nearby',
-                      subtitle: 'Bluetooth, no internet needed',
-                      onTap: _openNearby,
-                    ),
-                    const SizedBox(height: 22),
-                    _BotSkill(level: _level, onChanged: (l) => setState(() => widget.prefs.botLevel = _level = l)),
-                    const SizedBox(height: 16),
-                    Text(
-                      AppConfig.useMockBackend ? 'Online: in-app demo server' : 'Online: ${AppConfig.serverUrl}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: C.faint, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
+
+  List<Widget> _controls(BuildContext context, bool wide) {
+    final gap = wide ? 8.0 : 10.0;
+    return [
+      TextField(
+        controller: _name,
+        maxLength: 16,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(
+          counterText: '',
+          hintText: 'Your name',
+          prefixIcon: Icon(Icons.person_outline, color: C.muted),
+        ),
+      ),
+      SizedBox(height: wide ? 12 : 14),
+      _ModeTile(
+        icon: Icons.smart_toy_rounded,
+        title: 'Play with bots',
+        subtitle: 'Offline, starts instantly',
+        primary: true,
+        onTap: _playOffline,
+      ),
+      SizedBox(height: gap),
+      _ModeTile(
+        icon: Icons.public_rounded,
+        title: 'Play online',
+        subtitle: 'Quick match or a table for friends',
+        onTap: _showOnlineMenu,
+      ),
+      SizedBox(height: gap),
+      _ModeTile(
+        icon: Icons.bluetooth_rounded,
+        title: 'Play nearby',
+        subtitle: 'Bluetooth, no internet needed',
+        onTap: _openNearby,
+      ),
+      SizedBox(height: wide ? 14 : 22),
+      _BotSkill(level: _level, onChanged: (l) => setState(() => widget.prefs.botLevel = _level = l)),
+      const SizedBox(height: 12),
+      Text(
+        AppConfig.useMockBackend ? 'Online: in-app demo server' : 'Online: ${AppConfig.serverUrl}',
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: C.faint, fontSize: 11),
+      ),
+    ];
+  }
 }
 
 class _Logo extends StatelessWidget {
-  const _Logo();
+  const _Logo({this.compact = false});
+
+  final bool compact;
 
   static const _fan = ['JC', 'JD', 'JH', 'JS'];
 
@@ -218,24 +251,24 @@ class _Logo extends StatelessWidget {
     return Column(
       children: [
         SizedBox(
-          height: 128,
+          height: compact ? 108 : 128,
           child: Stack(
             alignment: Alignment.bottomCenter,
             children: [
               for (final (i, code) in _fan.indexed)
                 Transform.translate(
-                  offset: Offset((i - 1.5) * 34, -(1.5 - (i - 1.5).abs()) * 6),
+                  offset: Offset((i - 1.5) * (compact ? 29 : 34), -(1.5 - (i - 1.5).abs()) * 6),
                   child: Transform.rotate(
                     angle: (i - 1.5) * 0.16,
                     alignment: Alignment.bottomCenter,
-                    child: CardSprite(code: code, width: 76),
+                    child: CardSprite(code: code, width: compact ? 64 : 76),
                   ),
                 ),
             ],
           ),
         ),
-        const SizedBox(height: 18),
-        const GoldText('29', size: 76, letterSpacing: -2),
+        SizedBox(height: compact ? 12 : 18),
+        GoldText('29', size: compact ? 62 : 76, letterSpacing: -2),
         const SizedBox(height: 2),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,

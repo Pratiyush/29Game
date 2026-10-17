@@ -93,9 +93,14 @@ texture, a bronze table rail, gold for anything you can act on, and a colour per
 coral = theirs). Poppins (OFL) is bundled for type. The table, the lobby and the home screen all draw the
 same felt and oval surface, so the game looks like one place rather than three screens.
 
+The game runs in **landscape** (locked in `lib/main.dart`, the Android manifest and the iOS plist):
+a card table is wider than it is tall, so the four seats, the trick and a fanned hand all fit without
+scrolling. Every screen still lays out correctly in portrait, and the widget tests cover both.
+
 A few deliberate details:
 
-* **Seats sit on the rail** around an oval table, with your hand fanned at the bottom and the partner opposite.
+* **Seats sit on the rail** around an oval table, with your hand dealt over its lower edge and the partner opposite.
+* **In landscape the whole auction is one row** (pass plus every legal bid), with no scrolling.
 * **Whose turn it is** is a pulsing gold ring on that seat - no text to read.
 * **Playable cards lift and glow**; cards you cannot legally play are dimmed, so the rules teach themselves.
 * **Tricks animate**: each card deals in from its player's side, the winning card is ringed, then the trick

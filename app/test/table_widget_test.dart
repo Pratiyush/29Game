@@ -6,9 +6,16 @@ import 'package:game29/ui/session_screen.dart';
 import 'package:game29/ui/theme.dart';
 
 void main() {
-  for (final size in const [Size(412, 860), Size(360, 740)]) {
-    testWidgets('offline table at ${size.width.toInt()}dp shows my four cards and bid controls', (tester) async {
-      await _offlineTable(tester, size);
+  // Landscape is the orientation the game runs in (see lib/main.dart); the last case keeps the
+  // portrait layout honest in case the lock is ever lifted.
+  const sizes = {
+    'landscape 860x412': Size(860, 412),
+    'landscape 740x360': Size(740, 360),
+    'portrait 412x860': Size(412, 860),
+  };
+  for (final entry in sizes.entries) {
+    testWidgets('offline table in ${entry.key} shows my four cards and bid controls', (tester) async {
+      await _offlineTable(tester, entry.value);
     });
   }
 }
