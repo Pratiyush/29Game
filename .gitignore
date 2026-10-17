@@ -25,3 +25,5 @@ app/ios/Flutter/flutter_export_environment.sh
 .vscode/
 *.iml
 .DS_Store
+app/android/build/
+app/android/.kotlin/
