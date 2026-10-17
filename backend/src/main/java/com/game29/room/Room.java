@@ -162,7 +162,10 @@ final class Room {
         if (game.phase() == Phase.ROUND_OVER) {
             service.scheduler().schedule(() -> nextRound(v), service.config().roundPauseMs(), TimeUnit.MILLISECONDS);
         } else if (game.phase() != Phase.MATCH_OVER && seats[game.turn()].autoPlay()) {
-            service.scheduler().schedule(() -> botMove(v), service.config().botDelayMs(), TimeUnit.MILLISECONDS);
+            // Give players time to see who took the last trick before the next lead.
+            boolean newTrick = game.phase() == Phase.PLAYING && game.trickEmpty() && game.tricksPlayed() > 0;
+            long delay = service.config().botDelayMs() * (newTrick ? 2 : 1);
+            service.scheduler().schedule(() -> botMove(v), delay, TimeUnit.MILLISECONDS);
         }
     }
 

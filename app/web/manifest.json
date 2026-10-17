@@ -1,0 +1,35 @@
+{
+    "name": "29 - Twenty-nine",
+    "short_name": "29",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0B3D26",
+    "theme_color": "#1F7A4D",
+    "description": "29 card game: play with bots, online, or with friends nearby.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

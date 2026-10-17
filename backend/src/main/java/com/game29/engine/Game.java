@@ -381,6 +381,8 @@ public class Game {
     public int turn() { return turn; }
     public int bidder() { return bidder; }
     public int round() { return round; }
+    public int tricksPlayed() { return tricksPlayed; }
+    public boolean trickEmpty() { return trick.isEmpty(); }
     public int[] teamPoints() { return teamPoints.clone(); }
     public int[] matchScore() { return matchScore.clone(); }
     public List<Card> hand(int seat) { return List.copyOf(hands.get(seat)); }
