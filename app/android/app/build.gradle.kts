@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.game29.game29"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler (Nearby permissions) requires compiling against SDK 37+.
+    compileSdk = maxOf(flutter.compileSdkVersion, 37)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
